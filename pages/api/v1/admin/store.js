@@ -1,4 +1,4 @@
-const store = require('../../../../../lib/dataStore')
+const store = require('../../../../lib/dataStore')
 
 function adminKeyMatches(req) {
   const key = process.env.ADMIN_KEY
