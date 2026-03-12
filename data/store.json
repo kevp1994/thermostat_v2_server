@@ -3,20 +3,20 @@
     {
       "zoneId": "zone-1",
       "name": "Living Room",
-      "currentTemp": 75,
-      "humidity": 50.1,
+      "currentTemp": 20,
+      "humidity": 40,
       "status": "idle",
       "online": true,
-      "lastSeen": "2026-03-12T12:01:00Z",
+      "lastSeen": "2020-01-01T00:00:00Z",
       "settings": {
-        "targetTemp": 19,
+        "targetTemp": 20,
         "mode": "off",
         "hold": true,
         "scheduleEnabled": false
       },
       "pending": {
         "settings": {
-          "targetTemp": 19,
+          "targetTemp": 20,
           "mode": "off",
           "hold": true,
           "scheduleEnabled": false
@@ -28,7 +28,7 @@
     {
       "zoneId": "zone-2",
       "name": "Bedroom",
-      "currentTemp": 75,
+      "currentTemp": 25,
       "humidity": 50.1,
       "status": "idle",
       "online": true,

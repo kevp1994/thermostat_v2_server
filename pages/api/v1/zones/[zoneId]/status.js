@@ -4,7 +4,7 @@ function error(res, status, message, code) {
   res.status(status).json({ error: message, code })
 }
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
   const { zoneId } = req.query
   if (!zoneId) return error(res, 400, 'zoneId required', 'BAD_ZONE_ID')
 
@@ -13,9 +13,9 @@ export default function handler(req, res) {
     if (typeof currentTemp !== 'number' || typeof status !== 'string' || typeof timestamp !== 'string') {
       return error(res, 400, 'Invalid body: currentTemp (number), status (string), timestamp (string) required', 'BAD_BODY')
     }
-    const z = store.getZone(zoneId)
+    const z = await store.getZone(zoneId)
     if (!z) return error(res, 404, 'Zone not found', 'NOT_FOUND')
-    const result = store.updateZoneStatus(zoneId, { currentTemp, humidity, status, timestamp })
+    const result = await store.updateZoneStatus(zoneId, { currentTemp, humidity, status, timestamp })
     return res.status(200).json(result)
   }
 

@@ -7,13 +7,13 @@ function adminKeyMatches(req) {
   return header === key
 }
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
   if (!adminKeyMatches(req)) {
     return res.status(403).json({ error: 'Admin key required', code: 'FORBIDDEN' })
   }
 
   if (req.method === 'GET') {
-    const raw = store.getRawStore()
+    const raw = await store.getRawStore()
     return res.status(200).json(raw)
   }
 
@@ -21,13 +21,13 @@ export default function handler(req, res) {
     const body = req.body || {}
     const action = body.action || req.query.action
     if (action === 'reload') {
-      const reloaded = store.reloadFromDisk()
+      const reloaded = await store.reloadFromDisk()
       return res.status(200).json({ reloaded })
     }
     if (action === 'replace') {
       const newStore = body.store
-      if (!newStore) return res.status(400).json({ error: 'store body required for replace', code: 'BAD_BODY' })
-      const replaced = store.replaceStore(newStore)
+      if (!newStore) return res.status(400).json({ error: 'await store.body required for replace', code: 'BAD_BODY' })
+      const replaced = await store.replaceStore(newStore)
       return res.status(200).json({ replaced })
     }
     return res.status(400).json({ error: 'action required: reload|replace', code: 'BAD_ACTION' })

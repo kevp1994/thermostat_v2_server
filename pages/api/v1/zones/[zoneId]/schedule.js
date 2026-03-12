@@ -4,19 +4,19 @@ function error(res, status, message, code) {
   res.status(status).json({ error: message, code })
 }
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
   const { zoneId } = req.query
   if (!zoneId) return error(res, 400, 'zoneId required', 'BAD_ZONE_ID')
 
   if (req.method === 'GET') {
-    const schedule = store.getSchedule(zoneId)
+    const schedule = await store.getSchedule(zoneId)
     if (schedule === null) return error(res, 404, 'Zone not found', 'NOT_FOUND')
     return res.status(200).json({ zoneId, schedule })
   }
 
   if (req.method === 'PUT') {
     const body = req.body || {}
-    const updated = store.putSchedule(zoneId, body.schedule || null)
+    const updated = await store.putSchedule(zoneId, body.schedule || null)
     if (updated === null) return error(res, 404, 'Zone not found', 'NOT_FOUND')
     return res.status(200).json({ zoneId, schedule: updated })
   }
