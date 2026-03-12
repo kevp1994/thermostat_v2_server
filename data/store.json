@@ -1,0 +1,54 @@
+{
+  "zones": [
+    {
+      "zoneId": "zone-1",
+      "name": "Living Room",
+      "currentTemp": 20.5,
+      "humidity": 45.2,
+      "status": "heating",
+      "online": true,
+      "lastSeen": "2026-03-12T10:30:00Z",
+      "settings": {
+        "targetTemp": 22,
+        "mode": "off",
+        "hold": false,
+        "scheduleEnabled": false
+      },
+      "pending": {
+        "settings": {
+          "targetTemp": 22,
+          "mode": "off",
+          "hold": false,
+          "scheduleEnabled": false
+        },
+        "commands": []
+      },
+      "schedule": null
+    },
+    {
+      "zoneId": "zone-2",
+      "name": "Bedroom",
+      "currentTemp": 20.5,
+      "humidity": 45.2,
+      "status": "heating",
+      "online": true,
+      "lastSeen": "2026-03-12T10:30:00Z",
+      "settings": {
+        "targetTemp": 25,
+        "mode": "off",
+        "hold": false,
+        "scheduleEnabled": false
+      },
+      "pending": {
+        "settings": {
+          "targetTemp": 25,
+          "mode": "off",
+          "hold": false,
+          "scheduleEnabled": false
+        },
+        "commands": []
+      },
+      "schedule": null
+    }
+  ]
+}
