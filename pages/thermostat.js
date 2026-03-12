@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react'
+import Head from 'next/head'
+import { Calendar as CalendarIcon, Flame, Power, Thermometer, Droplets, RefreshCw } from 'lucide-react'
 
 export default function ThermostatPage() {
   const [zones, setZones] = useState([])
@@ -6,17 +8,27 @@ export default function ThermostatPage() {
   const [zone, setZone] = useState(null)
   const [settings, setSettings] = useState(null)
   const [schedule, setSchedule] = useState(null)
-  const [message, setMessage] = useState('')
 
+  // Polling mechanism
   useEffect(() => {
     fetchZones()
-  }, [])
+    
+    // Poll for current zone status every 5 seconds
+    const interval = setInterval(() => {
+      if (selectedZoneId) {
+        fetchZone(selectedZoneId)
+        fetchSettingsSilent(selectedZoneId)
+      }
+    }, 5000)
+    
+    return () => clearInterval(interval)
+  }, [selectedZoneId])
 
   useEffect(() => {
     if (!selectedZoneId) return
     fetchZone(selectedZoneId)
     fetchSettings(selectedZoneId)
-    fetchSchedule(selectedZoneId)
+    // fetchSchedule(selectedZoneId) // left for future expansion
   }, [selectedZoneId])
 
   async function fetchZones() {
@@ -26,7 +38,7 @@ export default function ThermostatPage() {
       setZones(json)
       if (!selectedZoneId && json.length > 0) setSelectedZoneId(json[0].zoneId)
     } catch (err) {
-      setMessage('Failed to load zones: ' + String(err))
+      console.error('Failed to load zones:', err)
     }
   }
 
@@ -37,7 +49,7 @@ export default function ThermostatPage() {
       const json = await res.json()
       setZone(json)
     } catch (err) {
-      setMessage('Failed to load zone: ' + String(err))
+      console.error('Failed to load zone:', err)
     }
   }
 
@@ -48,139 +60,197 @@ export default function ThermostatPage() {
       const json = await res.json()
       setSettings(json)
     } catch (err) {
-      setMessage('Failed to load settings: ' + String(err))
+      console.error('Failed to load settings:', err)
     }
   }
 
-  async function fetchSchedule(id) {
+  async function fetchSettingsSilent(id) {
     try {
-      const res = await fetch(`/api/v1/zones/${encodeURIComponent(id)}/schedule`)
-      if (!res.ok) { setSchedule(null); return }
+      const res = await fetch(`/api/v1/zones/${encodeURIComponent(id)}/settings`)
+      if (!res.ok) return
       const json = await res.json()
-      setSchedule(json.schedule ?? json)
+      setSettings(prev => ({...prev, ...json}))
     } catch (err) {
-      setMessage('Failed to load schedule: ' + String(err))
+      // quiet
     }
   }
 
-  async function saveSettings() {
-    if (!selectedZoneId || !settings) return
+  async function performSettingUpdate(updates) {
+    if (!selectedZoneId) return
+    
+    const newSettings = { ...settings, ...updates }
+    setSettings(newSettings) // Optimistic update
+    
     try {
       const res = await fetch(`/api/v1/zones/${encodeURIComponent(selectedZoneId)}/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings)
+        body: JSON.stringify(newSettings)
       })
-      const json = await res.json()
-      if (!res.ok) setMessage('Save settings failed: ' + JSON.stringify(json))
-      else setMessage('Settings saved')
-      setSettings(json)
+      if (!res.ok) {
+        // Revert on failure
+        fetchSettings(selectedZoneId)
+      }
     } catch (err) {
-      setMessage('Save settings error: ' + String(err))
+      console.error('Save settings error:', err)
+      fetchSettings(selectedZoneId)
     }
   }
 
-  async function saveSchedule() {
-    if (!selectedZoneId) return
-    try {
-      const res = await fetch(`/api/v1/zones/${encodeURIComponent(selectedZoneId)}/schedule`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ schedule })
-      })
-      const json = await res.json()
-      if (!res.ok) setMessage('Save schedule failed: ' + JSON.stringify(json))
-      else setMessage('Schedule saved')
-      setSchedule(json.schedule ?? json)
-    } catch (err) {
-      setMessage('Save schedule error: ' + String(err))
-    }
+  function toggleMode() {
+    performSettingUpdate({ mode: settings?.mode === 'heat' ? 'off' : 'heat' })
   }
 
-  function updateSettingField(field, value) {
-    setSettings(prev => ({ ...prev, [field]: value }))
+  function toggleSchedule() {
+    performSettingUpdate({ scheduleEnabled: !settings?.scheduleEnabled })
+  }
+
+  function adjustTemp(amount) {
+    const currentTarget = settings?.targetTemp || 70
+    performSettingUpdate({ targetTemp: currentTarget + amount, hold: true })
+  }
+
+  // Format the current temp robustly
+  const currentTempFormat = zone?.currentTemp ? Math.round(zone.currentTemp) : '--'
+  const targetTemp = settings?.targetTemp || '--'
+  const isOff = settings?.mode === 'off'
+
+  // Status and Glow Logic
+  let uiStatus = 'Loading'
+  let glowClass = 'bg-transparent'
+
+  const currentT = zone?.currentTemp
+  const targetT = settings?.targetTemp
+
+  if (isOff) {
+    uiStatus = 'System Off'
+    glowClass = 'bg-gray-600'
+  } else if (zone?.status === 'heating' || (currentT && targetT && targetT > currentT)) {
+    uiStatus = 'Heating'
+    glowClass = 'bg-orange-600'
+  } else if (currentT && targetT && targetT < currentT) {
+    uiStatus = 'Standby (Cooling)'
+    glowClass = 'bg-blue-400'
+  } else if (currentT && targetT && targetT === currentT) {
+    uiStatus = 'At Target'
+    glowClass = 'bg-transparent' 
+  } else {
+    uiStatus = 'Idle'
   }
 
   return (
-    <div style={{ padding: 16, fontFamily: 'system-ui, Arial' }}>
-      <h1>Thermostat UI</h1>
-      <div>
-        <label>Zone: </label>
-        <select value={selectedZoneId} onChange={e => setSelectedZoneId(e.target.value)}>
-          <option value="">-- select --</option>
-          {zones.map(z => <option key={z.zoneId} value={z.zoneId}>{z.name} ({z.zoneId})</option>)}
-        </select>
-        <button onClick={fetchZones} style={{ marginLeft: 8 }}>Refresh Zones</button>
-      </div>
-
-      <div style={{ marginTop: 16 }}>
-        <h2>Zone Info</h2>
-        {zone ? (
-          <div>
-            <div>ZoneId: {zone.zoneId}</div>
-            <div>Name: {zone.name}</div>
-            <div>Current Temp: {zone.currentTemp ?? '--'}</div>
-            <div>Humidity: {zone.humidity ?? '--'}</div>
-            <div>Status: {zone.status}</div>
-            <div>Online: {String(zone.online)}</div>
-            <div>Last Seen: {zone.lastSeen}</div>
-          </div>
-        ) : (
-          <div>No zone selected or failed to load.</div>
-        )}
-      </div>
-
-      <div style={{ marginTop: 16 }}>
-        <h2>Settings</h2>
-        {settings ? (
-          <div>
-            <div>
-              <label>Target Temp: </label>
-              <input type="number" value={settings.targetTemp ?? ''} onChange={e => updateSettingField('targetTemp', e.target.value === '' ? null : Number(e.target.value))} />
-            </div>
-            <div>
-              <label>Mode: </label>
-              <select value={settings.mode} onChange={e => updateSettingField('mode', e.target.value)}>
-                <option value="heat">heat</option>
-                <option value="off">off</option>
-              </select>
-            </div>
-            <div>
-              <label>Hold: </label>
-              <input type="checkbox" checked={Boolean(settings.hold)} onChange={e => updateSettingField('hold', e.target.checked)} />
-            </div>
-            <div>
-              <label>Schedule Enabled: </label>
-              <input type="checkbox" checked={Boolean(settings.scheduleEnabled)} onChange={e => updateSettingField('scheduleEnabled', e.target.checked)} />
-            </div>
-            <div style={{ marginTop: 8 }}>
-              <button onClick={saveSettings}>Save Settings</button>
-            </div>
-          </div>
-        ) : (
-          <div>Settings not available.</div>
-        )}
-      </div>
-
-      <div style={{ marginTop: 16 }}>
-        <h2>Schedule (JSON)</h2>
-        <div>
-          <textarea value={schedule ? JSON.stringify(schedule, null, 2) : ''} onChange={e => {
-            try {
-              const parsed = JSON.parse(e.target.value)
-              setSchedule(parsed)
-            } catch (err) {
-              // keep raw text until valid JSON
-              setSchedule(e.target.value)
-            }
-          }} rows={10} cols={80} />
+    <>
+      <Head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <title>Thermostat</title>
+      </Head>
+      <div className="fixed inset-0 bg-gray-900 text-white flex flex-col items-center px-4 pt-[max(env(safe-area-inset-top),2rem)] pb-[max(env(safe-area-inset-bottom),2rem)] font-sans justify-center select-none overflow-hidden overscroll-none touch-manipulation">
+        
+        {/* Top Bar with Selector */}
+      <div className="max-w-md w-full mb-8 flex justify-between items-center bg-gray-800 p-4 rounded-2xl shadow-lg border border-gray-700">
+        <div className="flex items-center space-x-3">
+          <Thermometer className="text-orange-500" />
+          <select 
+            className="bg-gray-800 text-white border-none text-lg font-medium focus:ring-0 cursor-pointer outline-none"
+            value={selectedZoneId} 
+            onChange={e => setSelectedZoneId(e.target.value)}
+          >
+            {zones.map(z => (
+              <option key={z.zoneId} value={z.zoneId}>{z.name}</option>
+            ))}
+          </select>
         </div>
-        <div style={{ marginTop: 8 }}>
-          <button onClick={saveSchedule}>Save Schedule</button>
+        <div className="flex items-center space-x-4 text-gray-400">
+          <div className="flex flex-col items-center justify-center">
+             <Droplets size={16} />
+             <span className="text-xs mt-1">{zone?.humidity ? Math.round(zone.humidity) + '%' : '--%'}</span>
+          </div>
+          <div className="flex flex-col items-center justify-center relative">
+             <RefreshCw size={16} className={zone?.online ? "text-green-500" : "text-gray-500"} />
+             <span className="text-xs mt-1">{zone?.online ? 'Online' : 'Offline'}</span>
+          </div>
         </div>
       </div>
 
-      <div style={{ marginTop: 16, color: 'green' }}>{message}</div>
+      {/* Main Thermostat Dial */}
+      <div className="relative w-72 h-72 md:w-80 md:h-80 bg-gray-800 rounded-full flex items-center justify-center shadow-2xl border-4 border-gray-700 transition-all duration-500">
+        
+        {/* Glow effect based on state */}
+        <div className={`absolute inset-0 rounded-full blur-xl transition-colors duration-1000 opacity-20 ${glowClass}`}></div>
+
+        <div className="z-10 text-center flex flex-col items-center justify-center w-full h-full">
+          <p className="text-gray-400 text-sm tracking-widest uppercase mb-1">{uiStatus}</p>
+          
+          <div className="flex items-start justify-center">
+            <span className={`text-[8rem] leading-none font-bold tracking-tighter ${isOff ? 'text-gray-500' : 'text-white'}`}>
+              {currentTempFormat}
+            </span>
+          </div>
+
+          {!isOff && (
+            <div className="mt-4 flex items-center bg-gray-900 rounded-full px-5 py-2 space-x-6 border border-gray-700 shadow-inner">
+              <button 
+                onClick={() => adjustTemp(-1)}
+                className="text-2xl text-gray-400 hover:text-white transition-colors pt-0 pb-1 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-800"
+              >
+                -
+              </button>
+              <div className="flex flex-col items-center min-w-[3rem]">
+                <span className="text-xs text-gray-500 uppercase font-semibold tracking-wider mb-0.5">Target</span>
+                <span className="text-xl font-bold text-orange-400">{targetTemp}°</span>
+              </div>
+              <button 
+                 onClick={() => adjustTemp(1)}
+                 className="text-2xl text-gray-400 hover:text-white transition-colors pt-0 pb-1 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-800"
+              >
+                +
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Control Buttons */}
+      <div className="max-w-md w-full mt-12 grid grid-cols-2 gap-4">
+        
+        <button 
+          onClick={toggleMode}
+          className={`flex flex-col items-center justify-center py-5 rounded-2xl transition-all duration-300 ${
+            settings?.mode === 'heat' 
+              ? 'bg-orange-500/20 text-orange-400 border border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.2)]' 
+              : 'bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-700'
+          }`}
+        >
+          {settings?.mode === 'heat' ? <Flame size={28} className="mb-2" /> : <Power size={28} className="mb-2" />}
+          <span className="text-sm font-medium">{settings?.mode === 'heat' ? 'Heat Mode' : 'System Off'}</span>
+        </button>
+
+        <button 
+          onClick={toggleSchedule}
+          className={`flex flex-col items-center justify-center py-5 rounded-2xl transition-all duration-300 ${
+            settings?.scheduleEnabled 
+              ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.2)]' 
+              : 'bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-700'
+          }`}
+        >
+          <CalendarIcon size={28} className="mb-2" />
+          <span className="text-sm font-medium">Schedule {settings?.scheduleEnabled ? 'On' : 'Off'}</span>
+        </button>
+
+        {settings?.hold && (
+           <button 
+           onClick={() => performSettingUpdate({ hold: false })}
+           className="col-span-2 flex items-center justify-center space-x-2 py-4 rounded-2xl bg-gray-800 text-white border border-gray-600 hover:bg-gray-700 transition-colors mt-2"
+         >
+           <span className="text-sm font-medium">Resume Schedule (Clear Hold)</span>
+         </button>
+        )}
+
+      </div>
+      
     </div>
+    </>
   )
 }
