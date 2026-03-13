@@ -16,7 +16,9 @@ export default async function handler(req, res) {
     const z = await store.getZone(zoneId)
     if (!z) return error(res, 404, 'Zone not found', 'NOT_FOUND')
     const result = await store.updateZoneStatus(zoneId, { currentTemp, humidity, status, timestamp })
-    return res.status(200).json(result)
+    // include the global systemEnabled flag so device gets authoritative power state
+    const system = await store.getSystem()
+    return res.status(200).json({ ...result, systemEnabled: system?.enabled !== false })
   }
 
   res.setHeader('Allow', ['POST'])

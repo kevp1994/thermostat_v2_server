@@ -7,11 +7,13 @@ export default function ThermostatPage() {
   const [selectedZoneId, setSelectedZoneId] = useState('')
   const [zone, setZone] = useState(null)
   const [settings, setSettings] = useState(null)
+  const [systemEnabled, setSystemEnabled] = useState(true)
   const [schedule, setSchedule] = useState(null)
 
   // Polling mechanism
   useEffect(() => {
     fetchZones()
+    fetchSystem()
     
     // Poll for current zone status every 5 seconds
     const interval = setInterval(() => {
@@ -28,8 +30,20 @@ export default function ThermostatPage() {
     if (!selectedZoneId) return
     fetchZone(selectedZoneId)
     fetchSettings(selectedZoneId)
+    fetchSystem()
     // fetchSchedule(selectedZoneId) // left for future expansion
   }, [selectedZoneId])
+
+  async function fetchSystem() {
+    try {
+      const res = await fetch('/api/v1/system')
+      if (!res.ok) return
+      const json = await res.json()
+      setSystemEnabled(json?.systemEnabled !== false)
+    } catch (err) {
+      // ignore
+    }
+  }
 
   async function fetchZones() {
     try {
@@ -103,7 +117,9 @@ export default function ThermostatPage() {
     // controls whether the HVAC may run.
     const currentlyEnabled = settings?.enabled !== false
     const newEnabled = !currentlyEnabled
+    // Optimistic updates: update local settings and global flag immediately
     performSettingUpdate({ enabled: newEnabled })
+    setSystemEnabled(newEnabled)
 
     // If we're disabling the system, also post an immediate status update
     // so the server's zone status reflects the disabled state right away.
@@ -126,15 +142,19 @@ export default function ThermostatPage() {
     }
 
     // Also update the global system flag so `systemEnabled` in device updates
-    // reflects the user's action. This ensures the returned JSON includes the
-    // new global flag immediately.
+    // reflects the user's action. Update local `systemEnabled` immediately
+    // so the UI indicator changes without waiting for network roundtrips.
     try {
-      await fetch('/api/v1/system/power', {
+      const res = await fetch('/api/v1/system/power', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: newEnabled })
       })
-      // refresh pending/updates for the selected zone so UI and devices see it
+      if (!res.ok) {
+        // revert optimistic change
+        setSystemEnabled(!newEnabled)
+      }
+      // refresh pending/updates for the selected zone so devices see it
       if (selectedZoneId) {
         await fetch(`/api/v1/zones/${encodeURIComponent(selectedZoneId)}/updates`)
         fetchZone(selectedZoneId)
@@ -157,7 +177,7 @@ export default function ThermostatPage() {
   // Format the current temp robustly with 1 decimal place (0.5 degree steps)
   const currentTempFormat = zone?.currentTemp ? Number(zone.currentTemp).toFixed(1) : '--'
   const targetTemp = settings?.targetTemp ? Number(settings.targetTemp).toFixed(1) : '--'
-  const enabled = settings?.enabled !== false
+  const enabled = systemEnabled && (settings?.enabled !== false)
   const isOff = !enabled || settings?.mode === 'off'
 
   // Status and Glow Logic

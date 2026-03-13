@@ -11,7 +11,9 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     const z = await store.getZone(zoneId)
     if (!z) return error(res, 404, 'Zone not found', 'NOT_FOUND')
-    return res.status(200).json(z)
+    // include global system flag so clients/devices know if HVAC is globally disabled
+    const system = await store.getSystem()
+    return res.status(200).json({ ...z, systemEnabled: system?.enabled !== false })
   }
 
   if (req.method === 'DELETE') {
