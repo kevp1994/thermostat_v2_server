@@ -124,6 +124,25 @@ export default function ThermostatPage() {
         console.error('Failed to post status update:', err)
       }
     }
+
+    // Also update the global system flag so `systemEnabled` in device updates
+    // reflects the user's action. This ensures the returned JSON includes the
+    // new global flag immediately.
+    try {
+      await fetch('/api/v1/system/power', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: newEnabled })
+      })
+      // refresh pending/updates for the selected zone so UI and devices see it
+      if (selectedZoneId) {
+        await fetch(`/api/v1/zones/${encodeURIComponent(selectedZoneId)}/updates`)
+        fetchZone(selectedZoneId)
+        fetchSettingsSilent(selectedZoneId)
+      }
+    } catch (err) {
+      console.error('Failed to update global system flag:', err)
+    }
   }
 
   function toggleSchedule() {
