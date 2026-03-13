@@ -28,8 +28,8 @@ async function init() {
     console.log("Inserting default zones...");
     await sql`
       INSERT INTO zones (zone_id, name, settings, pending) VALUES 
-      ('zone-1', 'Living Room', '{"targetTemp": 70, "mode": "heat", "hold": false, "scheduleEnabled": false}'::jsonb, '{"settings": null, "commands": []}'::jsonb),
-      ('zone-2', 'Bedroom', '{"targetTemp": 68, "mode": "off", "hold": false, "scheduleEnabled": false}'::jsonb, '{"settings": null, "commands": []}'::jsonb)
+      ('zone-1', 'Living Room', '{"targetTemp": 18, "mode": "heat", "hold": false, "scheduleEnabled": false}'::jsonb, '{"settings": null, "commands": []}'::jsonb),
+      ('zone-2', 'Bedroom', '{"targetTemp": 18, "mode": "off", "hold": false, "scheduleEnabled": false}'::jsonb, '{"settings": null, "commands": []}'::jsonb)
     `;
     console.log("Default zones inserted.");
   } else {

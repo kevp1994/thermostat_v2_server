@@ -106,13 +106,13 @@ export default function ThermostatPage() {
   }
 
   function adjustTemp(amount) {
-    const currentTarget = settings?.targetTemp || 70
+    const currentTarget = settings?.targetTemp || 18.0
     performSettingUpdate({ targetTemp: currentTarget + amount, hold: true })
   }
 
-  // Format the current temp robustly
-  const currentTempFormat = zone?.currentTemp ? Math.round(zone.currentTemp) : '--'
-  const targetTemp = settings?.targetTemp || '--'
+  // Format the current temp robustly with 1 decimal place (0.5 degree steps)
+  const currentTempFormat = zone?.currentTemp ? Number(zone.currentTemp).toFixed(1) : '--'
+  const targetTemp = settings?.targetTemp ? Number(settings.targetTemp).toFixed(1) : '--'
   const isOff = settings?.mode === 'off'
 
   // Status and Glow Logic
@@ -184,7 +184,7 @@ export default function ThermostatPage() {
           <p className="text-gray-400 text-sm tracking-widest uppercase mb-1">{uiStatus}</p>
           
           <div className="flex items-start justify-center">
-            <span className={`text-[8rem] leading-none font-bold tracking-tighter ${isOff ? 'text-gray-500' : 'text-white'}`}>
+            <span className={`text-7xl md:text-[6rem] leading-none font-bold tracking-tighter ${isOff ? 'text-gray-500' : 'text-white'}`}>
               {currentTempFormat}
             </span>
           </div>
@@ -192,7 +192,7 @@ export default function ThermostatPage() {
           {!isOff && (
             <div className="mt-4 flex items-center bg-gray-900 rounded-full px-5 py-2 space-x-6 border border-gray-700 shadow-inner">
               <button 
-                onClick={() => adjustTemp(-1)}
+                onClick={() => adjustTemp(-0.5)}
                 className="text-2xl text-gray-400 hover:text-white transition-colors pt-0 pb-1 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-800"
               >
                 -
@@ -202,7 +202,7 @@ export default function ThermostatPage() {
                 <span className="text-xl font-bold text-orange-400">{targetTemp}°</span>
               </div>
               <button 
-                 onClick={() => adjustTemp(1)}
+                 onClick={() => adjustTemp(0.5)}
                  className="text-2xl text-gray-400 hover:text-white transition-colors pt-0 pb-1 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-800"
               >
                 +
@@ -253,4 +253,22 @@ export default function ThermostatPage() {
     </div>
     </>
   )
+}
+
+// Server-side auth check: redirect to /login when no valid auth cookie
+export async function getServerSideProps(ctx) {
+  const { req } = ctx
+  const cookieHeader = req.headers && req.headers.cookie ? req.headers.cookie : ''
+
+  const hasAuth = cookieHeader.split(';').map(c => c.trim()).some(c => c === 'auth=1')
+  if (!hasAuth) {
+    return {
+      redirect: {
+        destination: '/login',
+        permanent: false,
+      },
+    }
+  }
+
+  return { props: {} }
 }

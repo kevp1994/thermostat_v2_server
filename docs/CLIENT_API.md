@@ -62,7 +62,7 @@ Settings API (server-controlled)
 Settings object (example)
 ```json
 {
-  "targetTemp": 22.0,
+  "targetTemp": 18.0,
   "mode": "heat",
   "hold": false,
   "scheduleEnabled": true
@@ -71,7 +71,7 @@ Settings object (example)
 
 Zones
 - GET /api/v1/zones — returns list of zones and status
-- Note: zone creation is not exposed to clients; zones are configured server-side in `data/store.json`.
+- Note: zone creation is not exposed to clients; zones are configured in the Neon PostgreSQL database. Initialize with `npm run init-db`.
 
 Schedule
 - GET /api/v1/zones/{zoneId}/schedule
