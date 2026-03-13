@@ -12,7 +12,10 @@ export default async function handler(req, res) {
     const z = await store.getZone(zoneId)
     if (!z) return error(res, 404, 'Zone not found', 'NOT_FOUND')
     const updates = await store.getAndClearPendingUpdates(zoneId)
-    return res.status(200).json(updates)
+    // Include global system enabled flag so devices can decide to do nothing when disabled
+    const system = await store.getSystem()
+    const out = { ...updates, systemEnabled: system?.enabled !== false }
+    return res.status(200).json(out)
   }
 
   res.setHeader('Allow', ['GET'])

@@ -97,8 +97,33 @@ export default function ThermostatPage() {
     }
   }
 
-  function toggleMode() {
-    performSettingUpdate({ mode: settings?.mode === 'heat' ? 'off' : 'heat' })
+  async function toggleMode() {
+    // Toggle the system enabled flag instead of changing mode to 'off'.
+    // Mode remains the user's preferred intent (e.g. 'heat'), while `enabled`
+    // controls whether the HVAC may run.
+    const currentlyEnabled = settings?.enabled !== false
+    const newEnabled = !currentlyEnabled
+    performSettingUpdate({ enabled: newEnabled })
+
+    // If we're disabling the system, also post an immediate status update
+    // so the server's zone status reflects the disabled state right away.
+    if (!newEnabled && selectedZoneId) {
+      try {
+        await fetch(`/api/v1/zones/${encodeURIComponent(selectedZoneId)}/status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            currentTemp: zone?.currentTemp ? Number(zone.currentTemp) : 0,
+            humidity: zone?.humidity ? Number(zone.humidity) : 0,
+            status: 'off',
+            timestamp: new Date().toISOString()
+          })
+        })
+        fetchZone(selectedZoneId)
+      } catch (err) {
+        console.error('Failed to post status update:', err)
+      }
+    }
   }
 
   function toggleSchedule() {
@@ -113,7 +138,8 @@ export default function ThermostatPage() {
   // Format the current temp robustly with 1 decimal place (0.5 degree steps)
   const currentTempFormat = zone?.currentTemp ? Number(zone.currentTemp).toFixed(1) : '--'
   const targetTemp = settings?.targetTemp ? Number(settings.targetTemp).toFixed(1) : '--'
-  const isOff = settings?.mode === 'off'
+  const enabled = settings?.enabled !== false
+  const isOff = !enabled || settings?.mode === 'off'
 
   // Status and Glow Logic
   let uiStatus = 'Loading'
@@ -218,13 +244,13 @@ export default function ThermostatPage() {
         <button 
           onClick={toggleMode}
           className={`flex flex-col items-center justify-center py-5 rounded-2xl transition-all duration-300 ${
-            settings?.mode === 'heat' 
+            (enabled && settings?.mode === 'heat') 
               ? 'bg-orange-500/20 text-orange-400 border border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.2)]' 
               : 'bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-700'
           }`}
         >
-          {settings?.mode === 'heat' ? <Flame size={28} className="mb-2" /> : <Power size={28} className="mb-2" />}
-          <span className="text-sm font-medium">{settings?.mode === 'heat' ? 'Heat Mode' : 'System Off'}</span>
+          {(enabled && settings?.mode === 'heat') ? <Flame size={28} className="mb-2" /> : <Power size={28} className="mb-2" />}
+          <span className="text-sm font-medium">{(enabled && settings?.mode === 'heat') ? 'Heat Mode' : (isOff ? 'System Off' : (settings?.mode || 'Mode'))}</span>
         </button>
 
         <button 
