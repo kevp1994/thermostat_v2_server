@@ -111,15 +111,18 @@ export default function ThermostatPage() {
     }
   }
 
-  async function toggleMode() {
-    // Toggle the system enabled flag instead of changing mode to 'off'.
-    // Mode remains the user's preferred intent (e.g. 'heat'), while `enabled`
-    // controls whether the HVAC may run.
-    const currentlyEnabled = settings?.enabled !== false
-    const newEnabled = !currentlyEnabled
-    // Optimistic updates: update local settings and global flag immediately
-    performSettingUpdate({ enabled: newEnabled })
+  async function toggleSystemEnabled() {
+    const newEnabled = !systemEnabled
+
+    // Update the global flag immediately so the button state changes on click.
     setSystemEnabled(newEnabled)
+
+    // Legacy data may still have mode='off' from the older implementation.
+    // When re-enabling, normalize the selected zone back to heat so the UI and
+    // thermostat behavior match the user's intent.
+    if (newEnabled && settings?.mode === 'off') {
+      performSettingUpdate({ mode: 'heat', enabled: true })
+    }
 
     // If we're disabling the system, also post an immediate status update
     // so the server's zone status reflects the disabled state right away.
@@ -151,7 +154,6 @@ export default function ThermostatPage() {
         body: JSON.stringify({ enabled: newEnabled })
       })
       if (!res.ok) {
-        // revert optimistic change
         setSystemEnabled(!newEnabled)
       }
       // refresh pending/updates for the selected zone so devices see it
@@ -162,6 +164,7 @@ export default function ThermostatPage() {
       }
     } catch (err) {
       console.error('Failed to update global system flag:', err)
+      setSystemEnabled(!newEnabled)
     }
   }
 
@@ -177,8 +180,9 @@ export default function ThermostatPage() {
   // Format the current temp robustly with 1 decimal place (0.5 degree steps)
   const currentTempFormat = zone?.currentTemp ? Number(zone.currentTemp).toFixed(1) : '--'
   const targetTemp = settings?.targetTemp ? Number(settings.targetTemp).toFixed(1) : '--'
-  const enabled = systemEnabled && (settings?.enabled !== false)
-  const isOff = !enabled || settings?.mode === 'off'
+  const heatModeEnabled = (settings?.mode || 'heat') !== 'off'
+  const enabled = systemEnabled && heatModeEnabled
+  const isOff = !enabled
 
   // Status and Glow Logic
   let uiStatus = 'Loading'
@@ -281,15 +285,15 @@ export default function ThermostatPage() {
       <div className="max-w-md w-full mt-12 grid grid-cols-2 gap-4">
         
         <button 
-          onClick={toggleMode}
+          onClick={toggleSystemEnabled}
           className={`flex flex-col items-center justify-center py-5 rounded-2xl transition-all duration-300 ${
-            (enabled && settings?.mode === 'heat') 
+            systemEnabled
               ? 'bg-orange-500/20 text-orange-400 border border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.2)]' 
               : 'bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-700'
           }`}
         >
-          {(enabled && settings?.mode === 'heat') ? <Flame size={28} className="mb-2" /> : <Power size={28} className="mb-2" />}
-          <span className="text-sm font-medium">{(enabled && settings?.mode === 'heat') ? 'Heat Mode' : (isOff ? 'System Off' : (settings?.mode || 'Mode'))}</span>
+          {systemEnabled ? <Flame size={28} className="mb-2" /> : <Power size={28} className="mb-2" />}
+          <span className="text-sm font-medium">{systemEnabled ? 'Heat On' : 'System Off'}</span>
         </button>
 
         <button 
